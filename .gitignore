@@ -1,0 +1,5 @@
+bin/
+obj/
+*.o
+*.img
+*.img.tar.gz
