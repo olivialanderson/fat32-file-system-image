@@ -3,6 +3,7 @@
 
 #include "fat32.h"
 #include "lexer.h"
+#include "navigation.h"
 
 int main(int argc, char *argv[])
 {
@@ -41,6 +42,11 @@ int main(int argc, char *argv[])
                 printf("Error: info takes no arguments\n");
             else
                 cmd_info(&fs);
+        } else if (strcmp(cmd, "ls") == 0) {
+            if (tokens->size != 1)
+                printf("Error: ls takes no arguments\n");
+            else
+                cmd_ls(&fs);
         } else {
             printf("Error: unknown command '%s'\n", cmd);
         }

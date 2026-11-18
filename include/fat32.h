@@ -26,6 +26,29 @@ typedef struct __attribute__((packed)) {
     uint32_t BPB_RootClus;     /* offset 44 */
 } BootSector;
 
+/* One 32-byte directory entry, exactly as stored on disk. */
+typedef struct __attribute__((packed)) {
+    uint8_t  DIR_Name[11];     /* name, padded with spaces */
+    uint8_t  DIR_Attr;         /* 0x10 = directory, 0x0F = long name */
+    uint8_t  DIR_NTRes;
+    uint8_t  DIR_CrtTimeTenth;
+    uint16_t DIR_CrtTime;
+    uint16_t DIR_CrtDate;
+    uint16_t DIR_LstAccDate;
+    uint16_t DIR_FstClusHI;    /* high 16 bits of first cluster */
+    uint16_t DIR_WrtTime;
+    uint16_t DIR_WrtDate;
+    uint16_t DIR_FstClusLO;    /* low 16 bits of first cluster */
+    uint32_t DIR_FileSize;
+} DirEntry;
+
+#define ATTR_DIRECTORY 0x10
+#define ATTR_LONG_NAME 0x0F
+#define ATTR_VOLUME_ID 0x08    /* disk label, not a real file */
+#define ENTRY_END      0x00    /* first name byte: no more entries */
+#define ENTRY_DELETED  0xE5    /* first name byte: deleted entry */
+#define END_OF_CHAIN   0x0FFFFFF8
+
 /* Everything the program needs to know about the mounted image. */
 typedef struct {
     FILE *fp;                  /* open handle to the image file */
