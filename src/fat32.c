@@ -70,7 +70,7 @@ uint32_t entry_cluster(const DirEntry *entry)
 
 /* Converts a name like "dir1" into the 11-byte, space-padded, uppercase
  * form stored on disk ("DIR1       "). "." and ".." are kept as-is. */
-static void to_short_name(const char *name, uint8_t out[11])
+void to_short_name(const char *name, uint8_t out[11])
 {
     memset(out, ' ', 11);
 
@@ -128,6 +128,94 @@ int find_entry(FileSystem *fs, uint32_t dir_cluster, const char *name,
         cluster = get_fat_entry(fs, cluster);
     }
     return -1;
+}
+
+/* Writes a FAT entry in every FAT copy so they stay in sync.
+ * The top 4 bits of each entry are reserved, so they are preserved. */
+void set_fat_entry(FileSystem *fs, uint32_t cluster, uint32_t value)
+{
+    uint32_t fat_bytes = fs->bs.BPB_FATSz32 * fs->bs.BPB_BytsPerSec;
+    uint32_t first_fat = fs->bs.BPB_RsvdSecCnt * fs->bs.BPB_BytsPerSec;
+
+    for (uint32_t i = 0; i < fs->bs.BPB_NumFATs; i++) {
+        uint32_t offset = first_fat + i * fat_bytes + cluster * 4;
+        uint32_t old = 0;
+
+        fseek(fs->fp, offset, SEEK_SET);
+        fread(&old, sizeof(old), 1, fs->fp);
+
+        uint32_t updated = (old & 0xF0000000) | (value & 0x0FFFFFFF);
+        fseek(fs->fp, offset, SEEK_SET);
+        fwrite(&updated, sizeof(updated), 1, fs->fp);
+    }
+    fflush(fs->fp);
+}
+
+/* Finds a free cluster, marks it as the end of a chain, and fills it
+ * with zeros. Returns the cluster number, or 0 if the disk is full. */
+uint32_t alloc_cluster(FileSystem *fs)
+{
+    uint32_t data_sectors = fs->bs.BPB_TotSec32 - fs->first_data_sector;
+    uint32_t last_cluster = data_sectors / fs->bs.BPB_SecPerClus + 1;
+    uint32_t cluster_size = fs->bs.BPB_BytsPerSec * fs->bs.BPB_SecPerClus;
+
+    for (uint32_t cluster = 2; cluster <= last_cluster; cluster++) {
+        if (get_fat_entry(fs, cluster) != 0)
+            continue;
+
+        set_fat_entry(fs, cluster, EOC_MARK);
+
+        uint8_t zero = 0;
+        fseek(fs->fp, cluster_to_offset(fs, cluster), SEEK_SET);
+        for (uint32_t i = 0; i < cluster_size; i++)
+            fwrite(&zero, 1, 1, fs->fp);
+        fflush(fs->fp);
+        return cluster;
+    }
+    return 0;
+}
+
+/* Writes a new entry into the first free slot of a directory. If every
+ * slot is used, the directory gets a new cluster added to its chain.
+ * Returns 0 on success, -1 if the disk is full. */
+int add_dir_entry(FileSystem *fs, uint32_t dir_cluster, const DirEntry *entry)
+{
+    uint32_t cluster_size = fs->bs.BPB_BytsPerSec * fs->bs.BPB_SecPerClus;
+    uint32_t entries_per_cluster = cluster_size / sizeof(DirEntry);
+    uint32_t cluster = dir_cluster;
+    uint32_t last = dir_cluster;
+
+    while (cluster >= 2 && cluster < END_OF_CHAIN) {
+        uint32_t base = cluster_to_offset(fs, cluster);
+
+        for (uint32_t i = 0; i < entries_per_cluster; i++) {
+            uint32_t offset = base + i * sizeof(DirEntry);
+            uint8_t first = 0;
+
+            fseek(fs->fp, offset, SEEK_SET);
+            fread(&first, 1, 1, fs->fp);
+
+            if (first == ENTRY_END || first == ENTRY_DELETED) {
+                fseek(fs->fp, offset, SEEK_SET);
+                fwrite(entry, sizeof(DirEntry), 1, fs->fp);
+                fflush(fs->fp);
+                return 0;
+            }
+        }
+        last = cluster;
+        cluster = get_fat_entry(fs, cluster);
+    }
+
+    /* Directory is full: extend it by one cluster. */
+    uint32_t new_cluster = alloc_cluster(fs);
+    if (new_cluster == 0)
+        return -1;
+    set_fat_entry(fs, last, new_cluster);
+
+    fseek(fs->fp, cluster_to_offset(fs, new_cluster), SEEK_SET);
+    fwrite(entry, sizeof(DirEntry), 1, fs->fp);
+    fflush(fs->fp);
+    return 0;
 }
 
 void cmd_info(const FileSystem *fs)

@@ -48,6 +48,8 @@ typedef struct __attribute__((packed)) {
 #define ENTRY_END      0x00    /* first name byte: no more entries */
 #define ENTRY_DELETED  0xE5    /* first name byte: deleted entry */
 #define END_OF_CHAIN   0x0FFFFFF8
+#define EOC_MARK       0x0FFFFFFF  /* value written to end a chain */
+#define ATTR_ARCHIVE   0x20        /* normal file */
 
 /* Everything the program needs to know about the mounted image. */
 typedef struct {
@@ -69,3 +71,9 @@ uint32_t get_fat_entry(const FileSystem *fs, uint32_t cluster);
 uint32_t entry_cluster(const DirEntry *entry);
 int find_entry(FileSystem *fs, uint32_t dir_cluster, const char *name,
                DirEntry *out, uint32_t *offset_out);
+void to_short_name(const char *name, uint8_t out[11]);
+
+/* Helpers that modify the image. */
+void set_fat_entry(FileSystem *fs, uint32_t cluster, uint32_t value);
+uint32_t alloc_cluster(FileSystem *fs);
+int add_dir_entry(FileSystem *fs, uint32_t dir_cluster, const DirEntry *entry);
