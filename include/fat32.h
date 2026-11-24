@@ -66,3 +66,6 @@ void cmd_info(const FileSystem *fs);
 /* Shared helpers other commands will build on. */
 uint32_t cluster_to_offset(const FileSystem *fs, uint32_t cluster);
 uint32_t get_fat_entry(const FileSystem *fs, uint32_t cluster);
+uint32_t entry_cluster(const DirEntry *entry);
+int find_entry(FileSystem *fs, uint32_t dir_cluster, const char *name,
+               DirEntry *out, uint32_t *offset_out);

@@ -47,6 +47,11 @@ int main(int argc, char *argv[])
                 printf("Error: ls takes no arguments\n");
             else
                 cmd_ls(&fs);
+        } else if (strcmp(cmd, "cd") == 0) {
+            if (tokens->size != 2)
+                printf("Error: usage: cd [DIRNAME]\n");
+            else
+                cmd_cd(&fs, tokens->items[1]);
         } else {
             printf("Error: unknown command '%s'\n", cmd);
         }

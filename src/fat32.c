@@ -1,5 +1,6 @@
 #include "fat32.h"
 
+#include <ctype.h>
 #include <string.h>
 
 /* Opens the image, reads the boot sector, and sets the cwd to root.
@@ -59,6 +60,74 @@ uint32_t get_fat_entry(const FileSystem *fs, uint32_t cluster)
     fseek(fs->fp, offset, SEEK_SET);
     fread(&entry, sizeof(entry), 1, fs->fp);
     return entry & 0x0FFFFFFF;
+}
+
+/* First data cluster of an entry, built from its high and low halves. */
+uint32_t entry_cluster(const DirEntry *entry)
+{
+    return ((uint32_t)entry->DIR_FstClusHI << 16) | entry->DIR_FstClusLO;
+}
+
+/* Converts a name like "dir1" into the 11-byte, space-padded, uppercase
+ * form stored on disk ("DIR1       "). "." and ".." are kept as-is. */
+static void to_short_name(const char *name, uint8_t out[11])
+{
+    memset(out, ' ', 11);
+
+    if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) {
+        memcpy(out, name, strlen(name));
+        return;
+    }
+
+    for (int i = 0; i < 11 && name[i] != '\0'; i++)
+        out[i] = (uint8_t)toupper((unsigned char)name[i]);
+}
+
+/* Searches a directory for an entry with the given name. Skips deleted,
+ * long-name, and volume label entries. On success, copies the entry into
+ * *out, stores its byte offset in *offset_out (if not NULL), and returns 0.
+ * Returns -1 if no entry has that name. */
+int find_entry(FileSystem *fs, uint32_t dir_cluster, const char *name,
+               DirEntry *out, uint32_t *offset_out)
+{
+    uint8_t target[11];
+    uint32_t cluster_size = fs->bs.BPB_BytsPerSec * fs->bs.BPB_SecPerClus;
+    uint32_t entries_per_cluster = cluster_size / sizeof(DirEntry);
+    uint32_t cluster = dir_cluster;
+
+    if (strlen(name) > 11)
+        return -1;
+    to_short_name(name, target);
+
+    while (cluster >= 2 && cluster < END_OF_CHAIN) {
+        uint32_t base = cluster_to_offset(fs, cluster);
+
+        for (uint32_t i = 0; i < entries_per_cluster; i++) {
+            DirEntry entry;
+            uint32_t offset = base + i * sizeof(DirEntry);
+
+            fseek(fs->fp, offset, SEEK_SET);
+            fread(&entry, sizeof(DirEntry), 1, fs->fp);
+
+            if (entry.DIR_Name[0] == ENTRY_END)
+                return -1;
+            if (entry.DIR_Name[0] == ENTRY_DELETED)
+                continue;
+            if ((entry.DIR_Attr & ATTR_LONG_NAME) == ATTR_LONG_NAME)
+                continue;
+            if (entry.DIR_Attr & ATTR_VOLUME_ID)
+                continue;
+
+            if (memcmp(entry.DIR_Name, target, 11) == 0) {
+                *out = entry;
+                if (offset_out != NULL)
+                    *offset_out = offset;
+                return 0;
+            }
+        }
+        cluster = get_fat_entry(fs, cluster);
+    }
+    return -1;
 }
 
 void cmd_info(const FileSystem *fs)

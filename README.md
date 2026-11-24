@@ -98,7 +98,7 @@ with an error if the image file does not exist.
 | `info` | Done |
 | `exit` | Done |
 | `ls` | Done |
-| `cd [DIRNAME]` | Not started |
+| `cd [DIRNAME]` | Done |
 | `mkdir [DIRNAME]` | Not started |
 | `creat [FILENAME]` | Not started |
 | `open [FILENAME] [FLAGS]` | Not started |
@@ -122,6 +122,7 @@ Each member records their contributions here.
 | 2026-11-18 | Set up the repo layout, Makefile, and `.gitignore`; added the provided lexer |
 | 2026-11-18 | Implemented image mounting, the shell prompt, `info`, and `exit` |
 | 2026-11-18 | Implemented `ls` (skips deleted, long-name, and volume label entries) |
+| 2026-11-24 | Added the shared `find_entry` lookup and implemented `cd` (including `.` and `..`) |
 
 ### Gabriel Valladares-Ruiz
 
@@ -145,5 +146,5 @@ Each member records their contributions here.
 - Run `make clean` before staging changes. Do not commit `bin/`, `obj/`, or the image file;
   `.gitignore` excludes them.
 - Test against a fresh copy of `fat32.img` so a bad write can be undone by re-extracting it.
-- AI use: Claude (Anthropic) helped with setup steps and the mounting, `info`, `exit`, and `ls`
-  code. The team reviewed and tested all output.
+- AI use: Claude (Anthropic) helped with setup steps and the mounting, `info`, `exit`, `ls`, and
+  `cd` code. The team reviewed and tested all output.

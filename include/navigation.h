@@ -3,3 +3,4 @@
 #include "fat32.h"
 
 void cmd_ls(FileSystem *fs);
+void cmd_cd(FileSystem *fs, const char *dirname);
